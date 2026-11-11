@@ -15,4 +15,6 @@ resources:
         schema_silver: ${resources.schemas.silver.name}
         schema_gold: ${resources.schemas.gold.name}
         volume_landing: /Volumes/${var.catalog}/${resources.schemas.raw.name}/${resources.volumes.landing.name}
-        duracao_minima_interrupcao_minutos: "3"
+        duracao_minima_interrupcao_min: "3"
+        eixo1_queda_minima_uc: "0.2"
+        eixo2_faixa_estavel_conjunto: "0.1"

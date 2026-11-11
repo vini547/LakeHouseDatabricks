@@ -21,6 +21,10 @@ experimental:
 variables:
   catalog:
     description: The catalog to use
+  # Id de um Serverless Starter Warehouse; jobs que nao rodam em serverless de pipeline (sql_task)
+  # precisam de warehouse. Prod pode ter o seu; por ora ambos usam o mesmo.
+  warehouse_id:
+    description: The SQL warehouse to use for SQL tasks
 
 targets:
   dev:
@@ -34,6 +38,7 @@ targets:
       host: https://dbc-841b4777-0cbc.cloud.databricks.com
     variables:
       catalog: grid_dev
+      warehouse_id: 955067506c83b4e8
   prod:
     mode: production
     workspace:
@@ -42,6 +47,7 @@ targets:
       root_path: /Workspace/Users/carlosengineering547@gmail.com/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: grid_intelligence
+      warehouse_id: 955067506c83b4e8
     permissions:
       - user_name: carlosengineering547@gmail.com
         level: CAN_MANAGE

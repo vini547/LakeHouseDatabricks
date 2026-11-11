@@ -1,0 +1,32 @@
+resources:
+  jobs:
+    grid_intelligence:
+      name: Grid Intelligence - Pipeline e metricas
+      tasks:
+        - task_key: pipeline_transformacoes
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.grid_bronze.id}
+        # Depois do pipeline: poe as mascaras de novo no bronze (refresh recria a tabela e derruba)
+        - task_key: governanca_dado_pessoal
+          depends_on:
+            - task_key: pipeline_transformacoes
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/sql/governanca_dado_pessoal.sql
+              source: WORKSPACE
+            parameters:
+              catalogo: ${var.catalog}
+              schema_bronze: ${resources.schemas.bronze.name}
+        # Depois do pipeline: (re)cria a metric view de DEC/FEC a partir do YAML versionado
+        - task_key: continuidade_metricas
+          depends_on:
+            - task_key: pipeline_transformacoes
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../src/sql/metric_view_continuidade.sql
+              source: WORKSPACE
+            parameters:
+              catalogo: ${var.catalog}
+              schema_gold: ${resources.schemas.gold.name}
