@@ -1,0 +1,136 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "09198b54a6b241d0a5b643e3ad9c90e7",
+        "question": ["Resuma o que aconteceu em Campinas nas últimas 24 horas e diga o que precisa de ação hoje"]
+      },
+      {
+        "id": "2fdb76b342f44a098e25de4fb59d3eb8",
+        "question": ["Qual foi o DEC e o FEC de cada conjunto no último mês?"]
+      },
+      {
+        "id": "3ce2d73608da4c2a91c2eecaf796e453",
+        "question": ["Quais bairros concentram unidades com prioridade alta de inspeção?"]
+      },
+      {
+        "id": "9c72a07c5ec343a8be7ef6ce57c827a6",
+        "question": ["Quais clientes estão em risco de abrir reclamação na ouvidoria?"]
+      },
+      {
+        "id": "f67dccc6622e44be8ecd32a791e2db85",
+        "question": ["Quantos chamados com risco à saúde tivemos na última semana, e em quais conjuntos?"]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "${catalogo}.${schema_gold}.painel_operacional_dia",
+        "description": ["Operação por conjunto e dia: interrupções, horas-UC sem fornecimento, chamados, menções a ouvidoria, chamados com risco à saúde e UCs em prioridade alta de inspeção. Tem a coluna acao_recomendada."],
+        "column_configs": [
+          {"column_name": "dia", "enable_format_assistance": true},
+          {"column_name": "id_conjunto", "enable_format_assistance": true},
+          {"column_name": "nome_conjunto", "enable_format_assistance": true, "enable_entity_matching": true}
+        ]
+      },
+      {
+        "identifier": "${catalogo}.${schema_gold}.prioridade_inspecao_uc",
+        "description": ["Grão UC: UCs candidatas a visita técnica, com prioridade alta/media/baixa e o motivo observado em linguagem de negócio. É prioridade de inspeção, nunca acusação."],
+        "column_configs": [
+          {"column_name": "bairro", "enable_entity_matching": true},
+          {"column_name": "id_uc", "enable_format_assistance": true},
+          {"column_name": "prioridade_inspecao", "enable_entity_matching": true}
+        ]
+      },
+      {
+        "identifier": "${catalogo}.${schema_gold}.saude_cliente",
+        "description": ["Grão CLIENTE (não UC): quem está em rota de reclamação na ouvidoria, com quantidade de chamados, menções a ouvidoria/ANEEL/Procon, reincidência e a última fala já anonimizada."],
+        "column_configs": [
+          {"column_name": "id_cliente", "enable_format_assistance": true},
+          {"column_name": "risco_ouvidoria", "enable_entity_matching": true}
+        ]
+      }
+    ],
+    "metric_views": [
+      {
+        "identifier": "${catalogo}.${schema_gold}.continuidade_metricas",
+        "description": ["Metric view de continuidade: DEC e FEC por conjunto e mês. Toda medida requer MEASURE() e a consulta termina com GROUP BY ALL. Nunca recalcule DEC ou FEC a partir de outra tabela — a definição vive só aqui."]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "811591080099407c973da172433c5719",
+        "content": [
+          "Você responde em português do Brasil, sempre em linguagem de negócio, sem jargão técnico desnecessário.\n",
+          "\n",
+          "VOCABULÁRIO DO SETOR: UC (unidade consumidora) NÃO é sinônimo de cliente — um cliente pode ter várias UCs. Conjunto é a subdivisão geográfica da área de concessão e a unidade de agregação do regulador. DEC = duração equivalente de interrupção por UC. FEC = frequência equivalente de interrupção por UC. PNT = perdas não técnicas.\n",
+          "\n",
+          "ONDE ESTÁ CADA COISA:\n",
+          "- continuidade_metricas (metric view): responde perguntas sobre DEC e FEC. Toda medida precisa de MEASURE() e a consulta termina com GROUP BY ALL. NUNCA calcule DEC ou FEC somando colunas de outra tabela; a definição vive só ali.\n",
+          "- painel_operacional_dia: o que está acontecendo, por dia e conjunto — interrupções, horas-UC sem fornecimento, chamados, chamados com risco à saúde, menções à ouvidoria e UCs em prioridade alta de inspeção. Use para 'hoje', 'ontem', 'últimos dias' e 'última semana'.\n",
+          "- prioridade_inspecao_uc: grão UC — quem merece visita técnica primeiro. Use para perguntas sobre pontos de entrega.\n",
+          "- saude_cliente: grão CLIENTE — quem está em rota de reclamação na ouvidoria. Use para perguntas sobre clientes.\n",
+          "\n",
+          "ÚLTIMAS 24 HORAS significa o último dia com movimento em painel_operacional_dia (max(dia)), nunca current_date() — o dataset é estático e pode ter sido gerado dias antes.\n",
+          "\n",
+          "PLAYBOOK DE INVESTIGAÇÃO, em ordem: 1) localize o dia e o conjunto no painel; 2) compare o volume de chamados com a média dos 30 dias anteriores; 3) verifique risco à saúde e menções a ouvidoria — são os dois números que exigem ação imediata; 4) cheque o efeito do mês na metric view com MEASURE(); 5) termine pela coluna acao_recomendada.\n",
+          "\n",
+          "REGRA INEGOCIÁVEL: o resultado de prioridade_inspecao_uc é prioridade de inspeção — alta, média ou baixa. NUNCA descreva uma UC como fraude, furto, roubo ou irregularidade, nem mesmo se perguntem nesses termos. Se alguém perguntar 'quem está roubando energia', responda com a lista de prioridade e explique a diferença: queda de consumo também é mudança de morador, imóvel desocupado, defeito de medidor e erro de leitura.\n",
+          "\n",
+          "NÃO acesse bronze nem silver. Apenas a camada gold."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "a52d14438fdb4a6ab6b10e5f1df79e5e",
+        "question": ["Resuma o que aconteceu em Campinas nas últimas 24 horas e diga o que precisa de ação hoje"],
+        "sql": [
+          "SELECT dia, nome_conjunto, interrupcoes, uc_horas_interrompidas, chamados, chamados_negativos, ",
+          "chamados_risco_saude, mencoes_ouvidoria, uc_prioridade_alta, acao_recomendada\n",
+          "FROM ${catalogo}.${schema_gold}.painel_operacional_dia\n",
+          "WHERE dia = (SELECT max(dia) FROM ${catalogo}.${schema_gold}.painel_operacional_dia)\n",
+          "  AND nome_conjunto LIKE 'Campinas%'\n",
+          "ORDER BY uc_prioridade_alta DESC, uc_horas_interrompidas DESC"
+        ]
+      },
+      {
+        "id": "b77e74a9c87245aba1ae785b45d2a269",
+        "question": ["Qual foi o DEC e o FEC de cada conjunto no último mês?"],
+        "sql": [
+          "SELECT `Conjunto`, MEASURE(`DEC`) AS dec, MEASURE(`FEC`) AS fec\n",
+          "FROM ${catalogo}.${schema_gold}.continuidade_metricas\n",
+          "WHERE `Mes` = (SELECT max(`Mes`) FROM ${catalogo}.${schema_gold}.continuidade_metricas)\n",
+          "GROUP BY ALL\n",
+          "ORDER BY dec DESC"
+        ]
+      },
+      {
+        "id": "b808f3ddc8a8472d8ed7b2c3ec9a0a06",
+        "question": ["Quais bairros concentram unidades com prioridade alta de inspeção?"],
+        "sql": [
+          "SELECT bairro, count(*) AS unidades_alta\n",
+          "FROM ${catalogo}.${schema_gold}.prioridade_inspecao_uc\n",
+          "WHERE prioridade_inspecao = 'alta'\n",
+          "GROUP BY bairro\n",
+          "ORDER BY unidades_alta DESC"
+        ]
+      },
+      {
+        "id": "bfaf8d2d70be400d97caa0d61b4e5f93",
+        "question": ["Quais clientes estão em risco de abrir reclamação na ouvidoria?"],
+        "sql": [
+          "SELECT id_cliente, qtd_chamados, qtd_ucs_com_chamado, qtd_mencoes_ouvidoria, proporcao_negativa\n",
+          "FROM ${catalogo}.${schema_gold}.saude_cliente\n",
+          "WHERE risco_ouvidoria = 'alto'\n",
+          "ORDER BY qtd_mencoes_ouvidoria DESC, qtd_chamados DESC\n",
+          "LIMIT 20"
+        ]
+      }
+    ]
+  }
+}

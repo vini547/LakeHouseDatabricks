@@ -3,9 +3,11 @@ resources:
     grid_intelligence:
       name: Grid Intelligence - Pipeline e metricas
       tasks:
+        # Ingestao e transformacoes (bronze -> silver -> gold), tudo no pipeline serverless
         - task_key: pipeline_transformacoes
           pipeline_task:
             pipeline_id: ${resources.pipelines.grid_bronze.id}
+
         # Depois do pipeline: poe as mascaras de novo no bronze (refresh recria a tabela e derruba)
         - task_key: governanca_dado_pessoal
           depends_on:
@@ -18,6 +20,7 @@ resources:
             parameters:
               catalogo: ${var.catalog}
               schema_bronze: ${resources.schemas.bronze.name}
+
         # Depois do pipeline: (re)cria a metric view de DEC/FEC a partir do YAML versionado
         - task_key: continuidade_metricas
           depends_on:
@@ -30,3 +33,24 @@ resources:
             parameters:
               catalogo: ${var.catalog}
               schema_gold: ${resources.schemas.gold.name}
+
+        # Task final: relatorio executivo da regiao (RF-08), so lê a gold
+        - task_key: relatorio_executivo
+          depends_on:
+            - task_key: pipeline_transformacoes
+            - task_key: continuidade_metricas
+            - task_key: governanca_dado_pessoal
+          notebook_task:
+            notebook_path: ../src/notebooks/relatorio_executivo.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema_gold: ${resources.schemas.gold.name}
+              regiao: Campinas
+              usar_ia: "true"
+          environment_key: default
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "5"
+            dependencies: []
